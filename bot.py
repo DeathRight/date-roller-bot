@@ -8,7 +8,7 @@ import time
 
 # Wait times
 short_wait = 0.01
-medium_wait = 1.5
+medium_wait = 1
 long_wait = 5
 
 # Windows
@@ -205,9 +205,37 @@ def check_shiprec_date(type: str, date: str, config: Config):
     elif config["date_values"][type]["choice"] == "SINCE":
         return date_timestamp >= config["date_values"][type]["value"]
 
+def correct_status_column():
+    # Check if the current column is the Ship/Received Dt column
+    pyautogui.hotkey("ctrl", "c")
+    sleep(short_wait)
+    previous_value = pyperclip.paste()
+    
+    # Check if in date format
+    try:
+        time.strptime(previous_value, "%m/%d/%y")
+    except ValueError:
+        # We aren't in the correct column, move right until two values are the same
+        previous_value = None
+        current_value = None
+        while previous_value != current_value or previous_value is None:
+            pyautogui.hotkey("ctrl", "c")
+            sleep(short_wait)
+            previous_value = pyperclip.paste()
+            pyautogui.press("right")
+            pyautogui.hotkey("ctrl", "c")
+            sleep(short_wait)
+            current_value = pyperclip.paste()
+        
+        # Ship/Rec Dt column is 2nd from last column, so move left once
+        pyautogui.press("left")
+        sleep(short_wait)
+
 def order_status(config: Config, rows: list[str]):
+    changed = False
     # Set clipboard to first day of next month
-    pyperclip.copy(time.strftime("%m/01/%y", time.localtime(time.time() + 2592000)))
+    first_day_timestamp = time.time() + 2592000
+    first_day = time.strftime("%m/01/%Y", time.localtime(first_day_timestamp))
 
     for row in rows:
         date_type = None
@@ -216,32 +244,43 @@ def order_status(config: Config, rows: list[str]):
         elif "Rece" in row:
             date_type = "receive"
         
+        correct_status_column()
         # Check if row has "Ship" or "Rece" in it
         if date_type is not None and check_shiprec_date(date_type, config["rows"][config["current_row"]]["ship_date"], config):
-            # Paste clipboard into the cell
-            pyautogui.hotkey("ctrl", "v")
-            print(f"Updated row {config['current_row']} '{row}' to {pyperclip.paste()}")
-            config["rows"][config["current_row"]]["changed_to"] = pyperclip.paste()
-            pyautogui.press("enter")
-            sleep(medium_wait)
+            # Check if the date is already correct
+            pyautogui.hotkey("ctrl", "c")
+            sleep(short_wait)
+            clipboard_data = pyperclip.paste()
+            if clipboard_data != first_day:
+                pyperclip.copy(first_day)
+                # Paste clipboard into the cell
+                pyautogui.hotkey("ctrl", "v")
+                print(f"Updated row {config['current_row']} '{row}' to {pyperclip.paste()}")
+                config["rows"][config["current_row"]]["changed_to"] = pyperclip.paste()
+
+                changed = True
+
+                pyautogui.press("enter")
+                sleep(medium_wait)
         
         # Move to the next row
         pyautogui.press("down")
-        sleep(short_wait)
+        sleep(medium_wait)
     
     print("Order status state finished, exiting back to queue.")
     keyboard.press_and_release(88)
     sleep(medium_wait)
 
-    # Press enter twice to skip any possible popups
-    pyautogui.press("enter")
-    sleep(short_wait)
-    pyautogui.press("enter")
-    sleep(short_wait)
-    pyautogui.press("tab")
-    sleep(short_wait)
-    pyautogui.press("enter")
-    sleep(medium_wait)
+    if changed:
+        # Press enter twice to skip any possible popups
+        pyautogui.press("enter")
+        sleep(short_wait)
+        pyautogui.press("enter")
+        sleep(short_wait)
+        pyautogui.press("tab")
+        sleep(short_wait)
+        pyautogui.press("enter")
+        sleep(medium_wait)
     print("Exited back to queue.")
 
 def open_order(config: Config):
@@ -311,6 +350,45 @@ def check_date(date: str, config: Config):
     
     return check_date_value(config["date_values"]["ship"]) or check_date_value(config["date_values"]["receive"])
 
+def correct_queue_place(config: Config):
+    # Check if the current column is the Ship Date column
+    pyautogui.hotkey("ctrl", "c")
+    sleep(short_wait)
+    previous_value = pyperclip.paste()
+    
+    # Check if in date format
+    try:
+        time.strptime(previous_value, "%m/%d/%y")
+    except ValueError:
+        # We aren't in the correct column. First, move left until the value begins with T or S and has a number on the second character
+        while previous_value[0] not in ["T", "S"] or not previous_value[1].isdigit():
+            pyautogui.press("left")
+            pyautogui.hotkey("ctrl", "c")
+            sleep(short_wait)
+            previous_value = pyperclip.paste()
+        
+        # Move up to try and find the order number we are supposed to be on
+        while previous_value != config["rows"][config["current_row"]]["order_number"]:
+            pyautogui.press("up")
+            pyautogui.hotkey("ctrl", "c")
+            sleep(short_wait)
+            previous_value = pyperclip.paste()
+            if previous_value[0] not in ["T", "S"] or not previous_value[1].isdigit():
+                # Too far, go down one, and we will be at index 0
+                pyautogui.press("down")
+                sleep(short_wait)
+
+                # Go down until we get to the right index
+                for _ in range(config["current_row"]):
+                    pyautogui.press("down")
+                    sleep(short_wait)
+                break
+        
+        # Move right 3 times to get to the "Ship Date" column
+        for _ in range(3):
+            pyautogui.press("right")
+            sleep(short_wait)
+
 def queue_state(config: Config):
     # Call check_date on each row in the queue
     # If true, open order then continue to next row
@@ -319,6 +397,7 @@ def queue_state(config: Config):
     for index, row in enumerate(config["rows"]):
         # Update current_row
         config["current_row"] = index
+        correct_queue_place(config)
     
         # Copy the current value to the clipboard
         pyautogui.hotkey("ctrl", "c")

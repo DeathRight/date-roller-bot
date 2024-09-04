@@ -1,7 +1,6 @@
 # PyInstaller
 /build/
 dist/
-*.spec
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -18,4 +17,6 @@ venv/
 ENV/
 env.bak/
 venv.bak/
-/__pycache__
+
+# Allow bin directory
+!bin/

@@ -101,11 +101,15 @@ def show_success_window():
     
     success_window.protocol("WM_DELETE_WINDOW", on_closing)
 
-    tk.Button(success_window, text="OK", command=on_closing, width=20).pack(pady=10)
+    ok_button = tk.Button(success_window, text="OK", command=on_closing, width=20)
+    ok_button.pack(pady=10)
+    ok_button.focus_set()
 
 def show_countdown_window(config):
     countdown_window = tk.Toplevel()
     countdown_window.title("Countdown")
+    # Focus window
+    countdown_window.focus_force()
 
     countdown_label = tk.Label(countdown_window, text="", font=("Helvetica", 16))
     countdown_label.pack(pady=20)
@@ -115,7 +119,9 @@ def show_countdown_window(config):
         cancel_var.set(True)
         countdown_window.destroy()
 
-    tk.Button(countdown_window, text="Cancel", command=cancel, width=20).pack(pady=10)
+    cancel_button = tk.Button(countdown_window, text="Cancel", command=cancel, width=20)
+    cancel_button.pack(pady=10)
+    cancel_button.focus_set()
 
     def countdown(seconds):
         if cancel_var.get():
